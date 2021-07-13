@@ -1,0 +1,302 @@
+= Equality in Java and Kotlin
+Alexander Levin
+1.0, July 13, 2021
+:hide-uri-scheme:
+:toc:
+:source-highlighter: rouge
+:icons: font
+
+When you're migrating from Java to Kotlin it's not always clear what can be done in a better way.
+As the first example of things to improve, let's compare how to check equality in Java and Kotlin.
+
+== Primitives
+
+=== Java
+
+In Java we have separate primitive types like `int`, `double` and others.
+Checking equality of them is as simple as `i == 2`:
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        int i = 2;
+        System.out.println(i == 2);
+    }
+}
+----
+
+Also, for each primitive type we have corresponding types like `Integer` for `int`, `Double` for `double` and others.
+We can also use `==` operator for comparing primitive type and corresponding wrapper type:
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        int i = 2;
+        Integer nullableI = 2;
+        System.out.println(i == nullableI);
+    }
+}
+----
+
+However, you should be careful as wrapper type can be equal to null and comparing that to primitive will cause NPE (as Java will try to unbox our `Integer` before comparing it to `int`)
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        int i = 2;
+        Integer nullI = null;
+        System.out.println(i == nullI); // will throw NPE due to unboxing of null value
+    }
+}
+----
+
+Also, you should be careful when comparing 2 wrapper types as that may work in some cases but not in all of them:
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        System.out.println(Integer.valueOf(0) == Integer.valueOf(0)); // inside of integer cache by default
+System.out.println(Integer.valueOf(10000) == Integer.valueOf(10000)); // outside of integer cache by default
+    }
+}
+----
+
+Next section <<Objects>> will cover proper equality check of non-primitive types in Java.
+
+=== Kotlin
+
+In Kotlin we don't have explicit separation between primitive types and non-primitive ones.footnote:[details on how primitive types looks under the hood can be found here: https://kotlinlang.org/docs/basic-types.html#numbers-representation-on-the-jvm]
+For all basic types and their nullable variations `==` operator will work just fine:
+
+[source,kotlin]
+----
+fun main() {
+    val i = 2
+    val nullableI: Int? = 2
+    val nullI: Int? = null
+    println(i == 2)
+    println(i == nullableI)
+    println(i == nullI)
+    println(nullableI == nullI)
+}
+----
+
+== Objects
+
+=== Java
+
+As mentioned in the previous section, `==` may not work for checking equality for non-primitive types.
+Reason for that is that `==` operator in Java checks identity for non-primitive types.
+It's pretty common to have equal, but non-identical objects:
+
+[source,java]
+----
+public class Main {
+    record Foo(int i, String s) {
+    }
+    public static void main(String[] args) {
+        Foo foo = new Foo(2, "abc");
+        System.out.println(foo == new Foo(2, "abc")); // false as objects are non-identical
+    }
+}
+----
+
+To check equality you can use `equals` method:
+
+[source,java]
+----
+public class Main {
+    record Foo(int i, String s) {
+    }
+    public static void main(String[] args) {
+        Foo foo = new Foo(2, "abc");
+        System.out.println(foo.equals(new Foo(2, "abc"))); // true as objects are equal
+    }
+}
+----
+
+However, you should be careful while using `equals` method as it will fail if you try to use it on null object
+
+[source,java]
+----
+public class Main {
+    record Foo(int i, String s) {
+    }
+    public static void main(String[] args) {
+        Foo nullFoo = null;
+        System.out.println(nullFoo.equals(new Foo(2, "abc"))); // will fail with NPE
+    }
+}
+----
+
+Previously there was a convention that you can call `equals` on _literal object_:
+
+[source,java]
+----
+public class Main {
+    record Foo(int i, String s) {
+    }
+    public static void main(String[] args) {
+        Foo nullFoo = null;
+        System.out.println(new Foo(2, "abc").equals(nullFoo)); // will not fail with NPE
+    }
+}
+----
+
+But since Java 1.7 we have another option: `Objects.equals`:
+
+[source,java]
+----
+import java.util.Objects;
+
+public class Main {
+    record Foo(int i, String s) {
+    }
+    public static void main(String[] args) {
+        Foo nullFoo = null;
+        System.out.println(Objects.equals(nullFoo, new Foo(2, "abc"))); // will not fail with NPE
+    }
+}
+----
+
+This option is more reliable but less convenient to use.
+
+=== Kotlin
+
+As it was the case for basic types, `==` operator handles everything related to equality check:
+
+[source,kotlin]
+----
+data class Foo(val i: Int, val s: String)
+
+fun main() {
+    val foo = Foo(2, "abc")
+    val nullableFoo: Foo? = Foo(2, "abc")
+    val nullFoo: Foo? = null
+    println(foo == Foo(2, "abc"))
+    println(nullableFoo == foo)
+    println(nullFoo == foo)
+    println(nullableFoo == nullFoo)
+}
+----
+
+== Arrays
+
+=== Java
+
+If you are worked with arrays in Java before you might know that they don't have "proper" `equals`/`hashcode` so neither using `==` nor `equals` method will not work:
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        int[] arr = {1, 2, 3};
+        System.out.println(arr == new int[] {1, 2, 3}); // false, non-identical
+        System.out.println(arr.equals(new int[] {1, 2, 3})); // false, arrays don't have proper equals
+    }
+}
+----
+
+To compare content of your array you need to use `Arrays.equals`:
+
+[source,java]
+----
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        int[] arr = {1, 2, 3};
+        System.out.println(Arrays.equals(arr, new int[] {1, 2, 3})); // true
+    }
+}
+----
+
+=== Kotlin
+
+If you are using array types (like `Array`, `IntArray` and others) you will face the same issue as in Java:
+
+[source,kotlin]
+----
+fun main() {
+    val arr = intArrayOf(1, 2, 3)
+    println(arr == intArrayOf(1, 2, 3))
+}
+----
+
+You can avoid the issue by using `contentEquals` extension function.footnote:[Technically you can also use `Arrays.equals` from Java but there are not a lot of reasons to do such thing]:
+
+[source,kotlin]
+----
+fun main() {
+    val arr = intArrayOf(1, 2, 3)
+    println(arr.contentEquals(intArrayOf(1, 2, 3)))
+}
+----
+
+Note - you may prefer to just avoid the issue completely by using `List` or `MutableList` whenever possible (same is true for Java)
+
+== Nested Arrays
+
+=== Java
+
+While checking equality of nested arrays neither `equals` method nor `Arrays.equals` will not work:
+
+[source,java]
+----
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        int[][] matrix = {{1, 2}, {3, 4}};
+        System.out.println(arr.equals(new int[][] {{1, 2}, {3, 4}}));
+        System.out.println(Arrays.equals(arr, new int[][] {{1, 2}, {3, 4}}));
+    }
+}
+----
+
+You can use `Arrays.deepEquals` to check equality properly:
+
+[source,java]
+----
+import java.util.Arrays;
+
+public class Main {
+    public static void main(String[] args) {
+        int[][] matrix = {{1, 2}, {3, 4}};
+        System.out.println(Arrays.deepEquals(arr, new int[][] {{1, 2}, {3, 4}}));
+    }
+}
+----
+
+=== Kotlin
+
+Same issue is applicable for Kotlin, neither `==` operator nor `contentEquals` are applicable for nested arrays:
+
+[source,kotlin]
+----
+fun main() {
+    val matrix = arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))
+    println(matrix == arrayOf(intArrayOf(1, 2), intArrayOf(3, 4)))
+    println(matrix.contentEquals(arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))))
+}
+----
+
+You can use `contentDeepEquals` extension function to avoid the problem:
+
+[source,kotlin]
+----
+fun main() {
+    val matrix = arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))
+    println(matrix.contentDeepEquals(arrayOf(intArrayOf(1, 2), intArrayOf(3, 4))))
+}
+----
+
+== Conclusion
+
+In general Kotlin solves a lot of complexity that we can see in Java related to equality checks.
+All `==` operators, `equals` methods, `Objects.equals` functions became just `==` operators in Kotlin which is far more convenient.
+Arrays and nested arrays are still require some workarounds, but they are a bit more convenient (no need for imports, extension functions instead of usual function with 2 arguments)
