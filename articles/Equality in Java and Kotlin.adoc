@@ -40,7 +40,7 @@ public class Main {
 }
 ----
 
-However, you should be careful as wrapper type can be equal to null and comparing that to primitive will cause NPE (as Java will try to unbox our `Integer` before comparing it to `int`)
+However, you should be careful as wrapper type object can be equal to null and comparing that to primitive will cause NPE (as Java will try to unbox our `Integer` before comparing it to `int`)
 
 [source,java]
 ----
@@ -92,9 +92,9 @@ fun main() {
 
 === Java
 
-As mentioned in the previous section, `==` may not work for checking equality for non-primitive types.
-Reason for that is that `==` operator in Java checks identity for non-primitive types.
-It's pretty common to have equal, but non-identical objects:
+As mentioned in the previous section, `==` may not work for checking _equality_ for non-primitive types.
+Reason for that is that `==` operator in Java checks _identity_ for non-primitive types.
+It's pretty common to have _equal_, but _non-identical_ objects:
 
 [source,java]
 ----
@@ -109,7 +109,7 @@ public class Main {
 }
 ----
 
-To check equality you can use `equals` method:
+To check _equality_ you can use `equals` method:
 
 [source,java]
 ----
@@ -216,7 +216,7 @@ fun main() {
 
 Similar to Java, collections and maps also can be checked for equality in the same way:
 
-[source, kotlin]
+[source,kotlin]
 ----
 fun main() {
     val map = mapOf(1 to "one", 2 to "two")
@@ -359,7 +359,8 @@ Arrays and nested arrays are still require some workarounds, but they are a bit 
 
 == Side note 1: Identity check in Kotlin
 
-You may have a situation when you want to compare identity of some objects. Because in Kotlin `==` operator is now taken for equality check, new `===` operator is introduced for identity check purposes:
+You may have a situation when you want to compare identity of some objects.
+Because in Kotlin `==` operator is now taken for equality check, new `===` operator is introduced for identity check purposes:
 
 [source,kotlin]
 ----
@@ -384,6 +385,7 @@ fun main() {
 While it's not necessary to do so, you still can use `.equals` to check equality.
 One thing to notice - nullable types don't have `.equals` function.
 The following code is not compilable:
+
 [source,kotlin]
 ----
 fun main() {
