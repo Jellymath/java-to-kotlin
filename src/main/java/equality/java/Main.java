@@ -1,7 +1,6 @@
 package equality.java;
 
-import java.util.Arrays;
-import java.util.Objects;
+import java.util.*;
 
 public class Main {
     record Foo(int i, String s) {
@@ -41,5 +40,13 @@ public class Main {
         System.out.println(matrix.equals(new int[][] {{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}));
         System.out.println(Arrays.equals(matrix, new int[][]{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}));
         System.out.println(Arrays.deepEquals(matrix, new int[][]{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}));
+
+        System.out.println("-- Collections and maps --");
+        var map = Map.of(1, "one", 2, "two");
+        var list = List.of(1, 2, 3);
+        var set = Set.of(2, 1, 3);
+        System.out.println(map.equals(Map.of(2, "two", 1, "one")));
+        System.out.println(list.equals(List.of(1, 2, 3)));
+        System.out.println(Objects.equals(set, Set.of(1, 2, 3)));
     }
 }
