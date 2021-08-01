@@ -1,0 +1,173 @@
+= Comparison in Java and Kotlin
+Alexander Levin
+2.0, July 20, 2021
+:hide-uri-scheme:
+:toc:
+:source-highlighter: rouge
+:icons: font
+
+== Java
+
+We have https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/lang/Comparable.html[Comparable] and https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Comparator.html[Comparator].
+
+Both of them share common theme - compare two objects and return `int` resultfootnote:[Technically there is also some implied limitations like "sign of result on `a.compareTo(b)` or `compare(a, b)` should be negative sign of result on `b.compareTo(a)` or `compare(b, a)` ". But I would say it is mostly covered by "please write reasonable implementations and use helper methods to avoid accidental mistakes if possible".].
+More than zero means that first object is greater than second, less than zero means second object is greater than first and zero means objects are kinda equal to each otherfootnote:[Reason for "kinda" - BigDecimals can be equal in terms of compareTo but not in terms of equals. However, things like that are discouraged. Also in terms of comparators it is hard to say, is the objects are also should be considered as equal or not (it may vary case by case)]
+
+
+Comparable is attached to specific class itself and usually used to compare something with itself (`class X implement Comparable<X>`), however it is not strictly necessary.
+
+Comparator is declared separately from the class, so we can specify a lot of different comparators for the single class.
+
+=== Why do you need one or another?
+
+Some methods can be applied only to comparable units like https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Collections.html#sort(java.util.List)[Collections.sort].
+In some cases there is an option to provide `Comparator` explicitly instead (also https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Collections.html#sort(java.util.List,java.util.Comparator)[Collections.sort] as an example) which can be useful in case if you don't have the possibility to change class or your sorting/max operation requires very unusual idea how to compare.
+
+=== How to create Comparator?
+
+Prior to Java 8, you can only create one manually (creating anonymous class with https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Comparator.html#compare(T,T)[compare] being implemented) with built-in tools (of course there is a Guava option outside Java's standard library)
+
+After Java 8 release, you still have an option to implement it manually (however, now you can use shiny lambdas because Comparator is functional interface):
+
+[source,java]
+----
+public class Main {
+    record X(int id) {}
+    public static void main(String[] args) {
+        Comparator<X> comp = (a, b) -> Integer.compare(a.id, b.id);
+    }
+}
+----
+
+However, in most cases there is a better option - using Java 8 Comparator static and default methods:
+
+[source,java]
+----
+public class Main {
+    record X(int id) {}
+    public static void main(String[] args) {
+        Comparator<X> comp = Comparator.comparingInt(X::id);
+    }
+}
+----
+
+It is not always the shortest function to write (technically you can write comparator as `(a,b) -> a.id - b.id` which is the shortest option), but it is mostly likely to be the most readable option (in example with subtraction we should know exact contract for Comparator interface which is not the best thing considering that it is not the most obvious contract)
+
+=== How to implement Comparable?
+
+Implement interface as usual, specify type to compare (usually just name of your class), tell your IDE to provide a method to implement.
+After that you can implement something kinda manually
+
+[source,java]
+----
+record X(int id) implements Comparable<X> {
+    @Override
+    public int compareTo(X other) {
+        return Integer.compare(this.id, other.id);
+    }
+}
+----
+
+To avoid possible errors (invalid direction of comparison, unintentionally using different fields on different objects) it is nice to delegate as much work as possible.
+For that reason you can create and use underlying comparator:
+
+[source,java]
+----
+record X(int id) implements Comparable<X> {
+    private static Comparator<X> comp = Comparator.comparingInt(X::id);
+    @Override
+    public int compareTo(X other) {
+        return comp.compare(this, other);
+    }
+}
+----
+
+== Kotlin
+
+In Kotlin situation is mostly the same - it also has both Comparator and Comparable.
+Contract for both interfaces is the samefootnote:[More to that, on JVM platform Kotlin interfaces for Comparable and Comparator considered to be just typealiases for Java interfaces for Comparable and Comparator. Because of that you can forget about possible interop problems in this case.]
+
+However, there is some additional things about creating and using.
+
+=== Kotlin-specific use cases
+
+In Kotlin, compareTo function (which we have in Comparable interface) also considered to be operator function.
+Because of that you can use comparison operators with your class.
+
+Note that technically it is not necessary to implement Comparable in that case, it is enough to just provide either member or extension function compareTo.
+But presence of compareTo function doesn't means that class will be implicitly considered as Comparable so usually it is better to implement Comparable interface if you have a member compareTo function.
+
+One interesting thing - some methods in Java can imply that you should work with Comparable classes when using these methods.
+However in some situations Java cannot require user to provide Comparable classes and will fail in runtime because of that.
+In Kotlin problem can be partially solved using top-level creation functions or extensions functions
+
+One more note - some use cases of using comparators covered by possibility to provide selector for a function.
+As an example you have sorted* functions in Iterable/Sequence.
+You have a sorted and sortedDescending functions that expect class to be Comparable.
+If you don't have a natural ordering for the class you can use sortedWith function that accept Comparator.
+But also you have a possibility to use sortedBy and sortedByDescending which accepts selector for Comparable value.
+
+[source,kotlin]
+----
+val xSorted = xList.sortedBy { it.id }
+----
+
+Kotlin-specific creation methods Instead of providing default/companion function in Comparator/Comparable interface, Kotlin has a dedicated package filled with creation helpers and some functions based on comparison.
+
+Comparator creation is pretty similar to Java 8 Comparator API.
+For simple use cases can use functions like `compareBy` or `compareByDescending`:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+
+data class X(val id: Int)
+val comp: Comparator<X> = compareBy { it.id }
+----
+
+Thing which is different from Java - you also have `compareValuesBy` function which can help to implement Comparable interface:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareValuesBy
+
+data class X(val id: Int): Comparable<X> {
+    override operator fun compareTo(other: X): Int = compareValuesBy(this, other) { it.id }
+}
+----
+
+== Sidenotes
+
+=== What to choose?
+
+Usually there is a question - "Are you sure that everybody will be fine with this idea how to sort/select max/etc?"footnote:[Question kinda implied that you are thinking about class X implements Comparable<X>vs Comparator<X>. Technically it is also possible to have class X implement Comparable<Int>, but it is very rare case which should be considered with caution.].
+If yes - feel free to implement Comparable interface.
+If no - it is generally better to create Comparator and put it somewhere nearby.
+NB: of course there can be some exceptions so it is more like rule of thumb, not the only possible option.
+
+=== Design discussion about int comparison result
+
+NOTE: kinda subjective
+
+Int type was chosen in Java as result type and also in Kotlin because of the idea of easy interop.
+However I would say that it is pretty unobvious and also implies that developer should operate with exact contract (which is not that hard to understand, but sometimes there are some points of confusion like "is is 1, 0 and -1 or any positive number, any negative number and zero")
+
+In general I would say that it is better to operate with enum result (something like enum `Ordering { Less, Equal, Greater }`).
+It is more readable, there is less confusion how to implement it manually (NB: still would not recommend, please use helper functions if possible) and also it is easier to match result:
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        var result = Integer.compare(1, 2);
+        var text = switch(result) {
+            case Less -> "Result is less than expected";
+            case Equal -> "This is what we needed";
+            case Greater -> "Result is more than expected";
+        };
+        System.out.println(text);
+    }
+}
+----
+
+Note that in some languages where that design is already in place.
