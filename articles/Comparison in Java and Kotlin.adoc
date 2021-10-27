@@ -6,153 +6,438 @@ Alexander Levin
 :source-highlighter: rouge
 :icons: font
 
-== Java
+Previously we discussed the idea of checking equality of 2 objects which answer the question "are these 2 objects equal of not" with proper answers `true` ("Yes, they are equal to each other") and `false` ("No, they are different from each other").
+It's useful for operations like `contains`, `distinct` and many others.
+More on that https://ale.vin/articles/equality[here].
 
-We have https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/lang/Comparable.html[Comparable] and https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Comparator.html[Comparator].
+However, some operations require a bit more flexibility.
+It would be hard to infer order of some elements by just knowing are these elements equal or not.
+So we need different API for that.
+Let's find out how it was done in Java and Kotlin (and briefly look into another options)
 
-Both of them share common theme - compare two objects and return `int` resultfootnote:[Technically there is also some implied limitations like "sign of result on `a.compareTo(b)` or `compare(a, b)` should be negative sign of result on `b.compareTo(a)` or `compare(b, a)` ". But I would say it is mostly covered by "please write reasonable implementations and use helper methods to avoid accidental mistakes if possible".].
-More than zero means that first object is greater than second, less than zero means second object is greater than first and zero means objects are kinda equal to each otherfootnote:[Reason for "kinda" - BigDecimals can be equal in terms of compareTo but not in terms of equals. However, things like that are discouraged. Also in terms of comparators it is hard to say, is the objects are also should be considered as equal or not (it may vary case by case)]
+
+== Basic types
+
+=== Java
+
+Mostfootnote:[Actually all of them except `void` type (which is not always considered as primitive type) and `boolean`. That types are: `char`, `byte`, `short`, `int`, `long`, `float` and `double`] basic primitive types operate with following comparison operators: `>` (more than), `>=` (more or equal), `<` (less than) and `<=` (less or equal)
+
+[source,java]
+----
+public class Main {
+    public static void main(String[] args) {
+        System.out.println(5 > 4); // int comparison
+        System.out.println(5L >= 4L); // long comparison
+        System.out.println(4.0 <= 5.0); // double comparison
+        System.out.println(4f < 5f); // float comparison
+        System.out.println('a' < 'c'); // char comparison
+//      System.out.println(true > false); // primitive boolean comparison doesn't exist in Java
+        byte b1 = 5;
+        byte b2 = 4;
+        System.out.println(b1 > b2);
+        short s1 = 5;
+        short s2 = 4;
+        System.out.println(s1 >= s2);
+    }
+}
+----
+
+Based on them some useful functions can be constructed.
+As example, https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#max(double,double)[Math.max] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Math.html#min(double,double)[Math.min] functions are defined for `double`, `float`, `int` and `long` typesfootnote:[it's relatively common to see `byte`, `short` and `char` types omitted while implementing common functions]footnote:[It's also worth mentioning that floating point types sometimes have slightly different idea of comparison in some corner cases. As example comparison operators treat negative zero and positive zero as equal value but `min` and `max` functions treat positive zero as greater value comparing to negative zero]
+
+This approach is a bit limited in functionality however wrapper types for all basic types got more generic treatment that can be used as far as you are fine with potential boxing/unboxing of primitives.
+
+=== Kotlin
+
+Kotlin doesn't have explicit difference basic and non-basic types so proper explanation will be done later.
+However, it's worth noting a couple of important points:
+
+* Comparison operators are working for all basic types *including* Boolean and 4 Kotlin-specific unsigned number types:
+
+[source,kotlin]
+----
+fun main() {
+    println(5 > 4) // Int comparison
+    println(5L >= 4L) // Long comparison
+    println(4.0 <= 5.0) // Double comparison
+    println(4f < 5f) // Float comparison
+    println('a' < 'c') // Char comparison
+    println(false <= true); // Boolean comparison
+    val b1: Byte = 5
+    val b2: Byte = 4
+    println (b1 > b2)
+    val s1: Short = 5
+    val s2: Short = 4
+    println (s1 >= s2)
+
+    println(4u < 5u) // UInt comparison
+    println(4uL <= 5uL) //ULong comparison
+    val ub1: UByte = 5u
+    val ub2: UByte = 4u
+    println(ub1 > ub2)
+    val us1: UShort = 5u
+    val us2: UShort = 4u
+    println(us1 >= us2)
+}
+----
+
+* While technically there is no need to do that, for performance’s sake you can find some specific functions for basic types that corresponds to Java's primitive types like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.math/max.html[max], https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.math/min.html[min] or more a bit more generic https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/min-of.html[minOf] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/max-of.html[maxOf] from `kotlin.comparisons` package
+
+== Comparable
+
+=== Java
+
+While basic type comparison provide us some foundation, it's not exactly sufficient: you need to write same function for multiple types and also non-primitive types are not covered by this approach.
+However, there is another solution: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Comparable.html[Comparable]
+
+`Comparable` is the interface with single method to implement -  https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Comparable.html#compareTo(T)[compareTo], description of which says the following:
+
+> Compares this object with the specified object for order.
+Returns a negative integer, zero, or a positive integer as this object is less than, equal to, or greater than the specified object.
+
+To simplify things let's have Integer type as example.
+If we have `var i1 = Integer.valueOf(4)`, `var i2 = Integer.valueOf(6)` and `var i3 = Integer.valueOf(4)` we can expect the following
+
+* `i1.compareTo(i2)` returns some negative number.
+It can be just `-1` or `-2` or any other negative number, even `Integer.MIN_VALUE` is fine according to method contract.
+* `i2.compareTo(i1)` returns some positive number.
+Again, it can be `1`, `2` or even `Integer.MAX_VALUE`, it doesn't matter.
+* `i1.compareTo(i3)` should return zero as it's the same number in terms of comparisonfootnote:[In this example it's also the same number in terms of equality. Usually it's expected that `a.compareTo(b) == 0` implies `a.equals(b)` and vise versa. However, in rare cases this assumption is not correct. One example from standard library would be https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html[BigDecimal]. https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html#equals(java.lang.Object)[equals] of `BigDecimal` implies same value and scale but https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/math/BigDecimal.html#compareTo(java.math.BigDecimal)[compareTo] equal to zero implies only numerical equality (so `<2.00>.equal(<2.0>)` returns false but `<2.00>.compareTo(<2.0>)` returns `0`]
+
+This API is slightly unobvious, but it still can provide us a great abstraction that we can use in a lot of places.
+Examples for that would be:
+
+* Sorted collections like https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeSet.html[TreeSet], https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html[TreeMap], https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/ConcurrentSkipListSet.html[ConcurrentSkipListSet] or https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/concurrent/ConcurrentSkipListMap.html[ConcurrentSkipListMap]
+* Sorting functions and methods for https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#sort(java.util.List)[lists], https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html#sort(java.lang.Object%5B%5D)[arrays] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html#sorted()[streams]
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#min(java.util.Collection)[min] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#max(java.util.Collection)[max] functions for collections
+
+List of examples is definitely not excessive.
+In general, you can imagine that everything that needs comparison of elements and so-called natural order is sufficient can rely on `Comparable` interface.
+So if you have binary search, median, 90-percentile or any other thing you can use this interface in Java.
+
+At this point there might be a reasonable question "How to implement this interface properly," but we will talk about that a bit later.
+
+=== Kotlin
+
+Same as in Java, Kotlin also has own https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-comparable/[Comparable] interface to implement with the same contract around https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-comparable/compare-to.html[compareTo] implementation, however, there are more ways to use this interface out of the box.
+We can always use everything from Javafootnote:[Assuming Kotlin JVM target. Otherwise, you still will have Kotlin alternatives mostly for everything except maybe sorted collections] but there are more convenient alternatives in Kotlin and many new things.
+Let's start with mostly familiar stuff:
+
+* https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/min-of.html[minOf] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/max-of.html[maxOf] for 2, 3 or any amount of comparable elements
+* `maxOrNull` and `minOrNull` extension functions for https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/-iterable/[iterables] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.sequences/-sequence/[sequences] and any array typefootnote:[There are also `max` and `min` functions but there are in relatively long process of deprecation-removal-return-with-different-signature ¯\_(ツ)_/¯]
+* https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted.html[sorted] extension functions for iterables, https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.sequences/sorted.html[sequences] and any array type (return new _container_ with sorted elements)
+* https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sort.html[sort] extension function for https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/-mutable-list/[MutableList] and any array type (sort elements in place)
 
 
-Comparable is attached to specific class itself and usually used to compare something with itself (`class X implement Comparable<X>`), however it is not strictly necessary.
+As mentioned, there are some things that are not present in Java (at least in the same way):
 
-Comparator is declared separately from the class, so we can specify a lot of different comparators for the single class.
+* Any `Comparable` type have the ability to use comparison operators (so you can write expression like `"abc" < "cde"` footnote:[technically you can extend any type by providing operator function `compareTo` without implementing `Comparable` type explicitly. However, it only allows for operator usage, so it's better to just implement `Comparable` if that's possible and suitable for specific type. More on that https://kotlinlang.org/docs/operator-overloading.html#comparison-operators[here]])
+* Coercion extension functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-in.html[coerceIn], https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-at-least.html[coerceAtLeast] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-at-most.html[coerceAtMost] (with coercion functions you can write something like `inputValue.coerceIn(minReasonableValue, maxReasonableValue)`)
+* https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/-closed-range/[ClosedRange] type
+* *-By* counterparts for sorting functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sort-by.html[sortBy] or https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted-by.html[sortedBy].
+These functions allow us to easily sort list, sequence or other type by specific property which implements `Comparable`.
+It looks like `workers.sortedBy { it.salary }`
+* *-By* counterparts for https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/min-by-or-null.html[min] / https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/max-by-or-null.html[max] functions.
+Example code would be something like `val mostValuableWorker = workers.maxByOrNull { it.salary }`
+* Descending counterparts for sorting functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sort-descending.html[sortDescending], https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted-descending.html[sortedDescending] or https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted-by-descending.html[sortedByDescending].
+We can extend previous example to find 10 most valuable workers: `val mostValuableWorkers = workers.sortedByDescending { it.salary }.take(10)`
 
-=== Why do you need one or another?
+And probably many more!
+There is nothing that you cannot do in Java in _some_ way, but it's quite a lot of convenient things out of the box!
 
-Some methods can be applied only to comparable units like https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Collections.html#sort(java.util.List)[Collections.sort].
-In some cases there is an option to provide `Comparator` explicitly instead (also https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Collections.html#sort(java.util.List,java.util.Comparator)[Collections.sort] as an example) which can be useful in case if you don't have the possibility to change class or your sorting/max operation requires very unusual idea how to compare.
+== Comparator
 
-=== How to create Comparator?
+=== Java
 
-Prior to Java 8, you can only create one manually (creating anonymous class with https://docs.oracle.com/en/java/javase/16/docs/api/java.base/java/util/Comparator.html#compare(T,T)[compare] being implemented) with built-in tools (of course there is a Guava option outside Java's standard library)
+`Comparable` type is convenient when your class have some universal meaning of order.
+
+Of course, that's not really the case for all types.
+What's the proper way to order users?
+By name?
+Id?
+Maybe age?
+Or even name at first and age after that?
+Nobody knows for sure in advance.
+
+And even for types with some kind of agreed order, this order cannot always fit our task.
+As example, while String have universally agreed to be ordered by lexicographic order, in some situations we want strings to be ordered by string length first or by Scrabble score of this string
+
+To solve this issue https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html[Comparator] type can be introduced.
+
+In idea, it's pretty similar to `Comparable`: interface with one method to implement.
+Now it's https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#compare(T,T)[compare] which has quite similar contract as `compareTo` from `Comparable` but accepts 2 arguments instead of one.
+
+Upside of using `Comparator` is the idea that we can decide our ordering logic at the moment of sorting or finding the maximum.
+
+Downside is that we need to explicitly provide `Comparator` in specific call.
+
+Let's check some examples of Java API that uses `Comparator`:
+
+* `Comparator` can be provided to all sorted collections mentioned before to avoid natural order requirement.
+Example can be found https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/TreeMap.html#%3Cinit%3E(java.util.Comparator)[here]footnote:[While it's enforced neither by https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/SortedSet.html[SortedSet] nor https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/SortedMap.html[SortedMap] interface (because they cannot enforce constructors) it's recommended by these interfaces to have this constructor and standard library classes follow this recommendation]
+* All mentioned sorting functions and methods have the option to provide `Comparator`: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#sort(java.util.List,java.util.Comparator)[lists], https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Arrays.html#sort(T%5B%5D,java.util.Comparator)[arrays] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html#sorted(java.util.Comparator)[streams]
+* Mentioned https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#min(java.util.Collection,java.util.Comparator)[min] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Collections.html#max(java.util.Collection,java.util.Comparator)[max] for collections also have their analogue with explicit `Comparator` provided
+* https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html#max(java.util.Comparator)[max] and https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/stream/Stream.html#min(java.util.Comparator)[min] functions can also be found for `Stream` type
+
+And as always, there is no limit for possibilities to use this type.
+
+It was previously mentioned that we can do the _in some way_ the same thing that was possible with Kotlin.
+Let's try to write same example code in Java:
+
+[source,java]
+----
+import java.util.Comparator;
+import java.util.List;
+
+public class Main {
+    public static void main(String[] args){
+      List<Worker> workers = fetchWorkers();
+      Comparator<Worker> workerComparator = Comparator.comparing(Worker::getSalary);
+      var sortedBySalary = workers.stream()
+        .sorted(workerComparator)
+        .toList();
+      var mostValuableWorker = workers.stream()
+        .max(workerComparator);
+      var mostValuableWorkers = workers.stream()
+        .sorted(workerComparator.reversed())
+        .limit(10L)
+        .toList();
+    }
+}
+----
+
+=== Kotlin
+
+Same as before, Kotlin have own https://kotlinlang.org/api/latest/jvm/stdlib/kotlin/-comparator/[Comparator] with the same contract to implement.
+
+Because of existence of functions with natural order selector (*-By* functions like `sortedBy` or `maxByOrNull`) comparators used a bit less often, but they are still useful if you need more complex ordering (as example - sort something by name *and* age)
+
+Also, same as before, you can use everything from Java but Kotlin-friendly alternatives are provided:
+
+* *-With* counterpart for `sort` function - https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sort-with.html[sortWith] (sort in-place with provider comparator)
+* *-With* counterpart for `sorted` function - https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted-with.html[sortedWith] (return new _container_ with elements sorted by provided comparator)
+* *-With* counterpart for `max` and `min` functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/max-with-or-null.html[maxWithOrNull] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/min-with-or-null.html[minWithOrNull]
+
+Our code example from Java can be written like this:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+
+fun main() {
+    val workers: List<Worker> = fetchWorkers()
+    val workerComparator: Comparator<Worker> = compareBy { it.salary }
+    val sortedBySalary = workers.sortedWith(workerComparator)
+    val mostValuableWorker = workers.maxWithOrNull(workerComparator)
+    val mostValuableWorkers = workers.sortedWith(workerComparator.reversed()).take(10)
+}
+----
+
+While in this scenario it's easier to stick with *-By* functions:
+
+[source,kotlin]
+----
+fun main() {
+    val workers: List<Worker> = fetchWorkers()
+    val sortedBySalary = workers.sortedBy { it.salary }
+    val mostValuableWorker = workers.maxByOrNull { it.salary }
+    val mostValuableWorkers = workers.sortedByDescending { it.salary }.take(10)
+}
+----
+
+With more complex scenario it would be complicated to use *-By* functions.
+So, back to *-With* functions, note the change of comparator here:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+
+fun main() {
+    val workers: List<Worker> = fetchWorkers()
+    val workerComparator: Comparator<Worker> = compareBy({ it.salary }, { it.name })
+    val sorted = workers.sortedWith(workerComparator)
+    val mostValuableWorker = workers.maxWithOrNull(workerComparator)
+    val mostValuableWorkers = workers.sortedWith(workerComparator.reversed()).take(10)
+}
+----
+
+== How to create Comparator?
+
+=== Java
+
+Prior to Java 8, you can only create one manually (creating anonymous class with https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#compare(T,T)[compare] being implemented) with built-in tools (of course there is a Guava option outside Java's standard library)
 
 After Java 8 release, you still have an option to implement it manually (however, now you can use shiny lambdas because Comparator is functional interface):
 
 [source,java]
 ----
 public class Main {
-    record X(int id) {}
     public static void main(String[] args) {
-        Comparator<X> comp = (a, b) -> Integer.compare(a.id, b.id);
+        Comparator<Worker> comp = (a, b) -> Integer.compare(a.salary, b.salary);
     }
 }
 ----
 
-However, in most cases there is a better option - using Java 8 Comparator static and default methods:
+However, as demonstrated before, in most cases there is a better option - using Java 8 Comparator static and default methods like https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#comparing(java.util.function.Function)[comparing] and similarly named function for extracting primitives:
 
 [source,java]
 ----
 public class Main {
-    record X(int id) {}
     public static void main(String[] args) {
-        Comparator<X> comp = Comparator.comparingInt(X::id);
+        Comparator<Worker> comp = Comparator.comparingInt(Worker::getSalary);
     }
 }
 ----
 
-It is not always the shortest function to write (technically you can write comparator as `(a,b) -> a.id - b.id` which is the shortest option), but it is mostly likely to be the most readable option (in example with subtraction we should know exact contract for Comparator interface which is not the best thing considering that it is not the most obvious contract)
+It is not always the shortest function to write, but it is mostly likely to be the most readable option.
 
-=== How to implement Comparable?
-
-Implement interface as usual, specify type to compare (usually just name of your class), tell your IDE to provide a method to implement.
-After that you can implement something kinda manually
+To combine 2 comparators https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#thenComparing(java.util.Comparator)[thenComparing] method can be used:
 
 [source,java]
 ----
-record X(int id) implements Comparable<X> {
-    @Override
-    public int compareTo(X other) {
-        return Integer.compare(this.id, other.id);
+public class Main {
+    public static void main(String[] args) {
+        Comparator<Worker> workerSalaryComparator = Comparator.comparingInt(Worker::getSalary);
+        Comparator<Worker> workerAgeComparator = Comparator.comparingInt(Worker::getAge);
+        Comparator<Worker> workerComparator = workerSalaryComparator.thenComparing(workerAgeComparator);
     }
 }
 ----
 
-To avoid possible errors (invalid direction of comparison, unintentionally using different fields on different objects) it is nice to delegate as much work as possible.
-For that reason you can create and use underlying comparator:
+If all key extractors (selectors in Kotlin) known in advance they can be chained with https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#thenComparing(java.util.function.Function)[thenComparing] method and similarly named primitive type methods:
 
 [source,java]
 ----
-record X(int id) implements Comparable<X> {
-    private static Comparator<X> comp = Comparator.comparingInt(X::id);
-    @Override
-    public int compareTo(X other) {
-        return comp.compare(this, other);
+public class Main {
+    public static void main(String[] args) {
+        Comparator<Worker> workerComparator = workerSalaryComparator
+            .comparingInt(Worker::getSalary)
+            .thenComparingInt(Worker::getAge);
     }
 }
 ----
 
-== Kotlin
+To reverse order of comparator https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#reversed()[reversed] method can be used.
+If reversed natural order is desired there is https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#reverseOrder()[reversedOrder] function to use.
 
-In Kotlin situation is mostly the same - it also has both Comparator and Comparable.
-Contract for both interfaces is the samefootnote:[More to that, on JVM platform Kotlin interfaces for Comparable and Comparator considered to be just typealiases for Java interfaces for Comparable and Comparator. Because of that you can forget about possible interop problems in this case.]
+Lastly, to prioritize or deprioritize nulls while working with objects of some type https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#nullsFirst(java.util.Comparator)[nullsFirst] or https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/util/Comparator.html#nullsLast(java.util.Comparator)[nullsLast] functions can be used.
 
-However, there is some additional things about creating and using.
+=== Kotlin
 
-=== Kotlin-specific use cases
-
-In Kotlin, compareTo function (which we have in Comparable interface) also considered to be operator function.
-Because of that you can use comparison operators with your class.
-
-Note that technically it is not necessary to implement Comparable in that case, it is enough to just provide either member or extension function compareTo.
-But presence of compareTo function doesn't means that class will be implicitly considered as Comparable so usually it is better to implement Comparable interface if you have a member compareTo function.
-
-One interesting thing - some methods in Java can imply that you should work with Comparable classes when using these methods.
-However in some situations Java cannot require user to provide Comparable classes and will fail in runtime because of that.
-In Kotlin problem can be partially solved using top-level creation functions or extensions functions
-
-One more note - some use cases of using comparators covered by possibility to provide selector for a function.
-As an example you have sorted* functions in Iterable/Sequence.
-You have a sorted and sortedDescending functions that expect class to be Comparable.
-If you don't have a natural ordering for the class you can use sortedWith function that accept Comparator.
-But also you have a possibility to use sortedBy and sortedByDescending which accepts selector for Comparable value.
-
-[source,kotlin]
-----
-val xSorted = xList.sortedBy { it.id }
-----
-
-Kotlin-specific creation methods Instead of providing default/companion function in Comparator/Comparable interface, Kotlin has a dedicated package filled with creation helpers and some functions based on comparison.
-
-Comparator creation is pretty similar to Java 8 Comparator API.
-For simple use cases can use functions like `compareBy` or `compareByDescending`:
+Same as in Java, `Comparator` can be implemented manually, however it's better to use https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/compare-by.html[compareBy] from https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/[kotlin.comparisons] package
 
 [source,kotlin]
 ----
 import kotlin.comparisons.compareBy
 
-data class X(val id: Int)
-val comp: Comparator<X> = compareBy { it.id }
+fun main() {
+    val comparator: Comparator<Worker> = compareBy { it.salary }
+}
 ----
 
-Thing which is different from Java - you also have `compareValuesBy` function which can help to implement Comparable interface:
+To chain multiple selectors for predicate, either https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/compare-by.html[compareBy] with multiple arguments or https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/then-by.html[thenBy] extension can be used
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+import kotlin.comparisons.thenBy
+
+fun main() {
+    val comparator: Comparator<Worker> = compareBy({ it.salary }, { it.age })
+    val comparatorAlt: Comparator<Worker> = compareBy { it.salary }.thenBy { it.age }
+}
+----
+
+First approach is a bit easier, but second is more flexible.
+As example, if we need to reverse comparison by age only, we can use https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/then-by-descending.html[thenByDescending]:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+import kotlin.comparisons.thenByDescending
+
+fun main() {
+    val comparator: Comparator<Worker> = compareBy { it.salary }.thenByDescending { it.age }
+}
+----
+
+To chain multiple existing comparators, https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/then.html[then] or https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/then-descending.html[thenDescending] can be used:
+
+[source,kotlin]
+----
+import kotlin.comparisons.compareBy
+import kotlin.comparisons.then
+import kotlin.comparisons.thenDescending
+
+fun main() {
+    val workerSalaryComparator: Comparator<Worker> = compareBy { it.salary }
+    val workerAgeComparator: Comparator<Worker> = compareBy { it.age }
+    val workerNameComparator: Comparator<Worker> = compareBy { it.name }
+    val workerComparator = workerSalaryComparator then workerAgeComparator thenDescending workerNameComparator
+}
+----
+
+Same as in Java, we have https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/reversed.html[reversed] extension function and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/reverse-order.html[reverseOrder] function.
+
+Also, same as in Java, Kotlin has https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/nulls-first.html[nullFirst] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/nulls-last.html[nullLast] functions
+
+== How to implement Comparable?
+
+=== Java
+
+While Java provides very convenient API to create comparators, it doesn't really helps with implementing Comparable interface in your classes.
+
+You can implement it manually:
+
+[source,java]
+----
+record Worker(int id, double salary, int age) implements Comparable<Worker> {
+    @Override
+    public int compareTo(Worker other) {
+        return Integer.compare(this.id, other.id);
+    }
+}
+----
+
+Or to avoid possible errors you can have underlying comparator to help with your Comparable implementation:
+
+[source,java]
+----
+record Worker(int id, int salary, int age, String name) implements Comparable<Worker> {
+    private static Comparator<Worker> comp = Comparator.comparingInt(Worker::id);
+    @Override
+    public int compareTo(Worker other) {
+        return comp.compare(this, other);
+    }
+}
+----
+
+=== Kotlin
+
+Thing which is different from Java - you also have https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.comparisons/compare-values-by.html[compareValuesBy] function which can help to implement Comparable interface:
 
 [source,kotlin]
 ----
 import kotlin.comparisons.compareValuesBy
 
-data class X(val id: Int): Comparable<X> {
-    override operator fun compareTo(other: X): Int = compareValuesBy(this, other) { it.id }
+data class Worker(val id: Int, val salary: Int, val age: Int, val name: String): Comparable<Worker> {
+    override operator fun compareTo(other: Worker): Int = compareValuesBy(this, other) { it.id }
 }
 ----
 
-== Sidenotes
+Note that usage of `compareValuesBy` is rather limited so potential ideas of using `Comparator` or implementing `Comparable` manually still can be valid.
 
-=== What to choose?
-
-Usually there is a question - "Are you sure that everybody will be fine with this idea how to sort/select max/etc?"footnote:[Question kinda implied that you are thinking about class X implements Comparable<X>vs Comparator<X>. Technically it is also possible to have class X implement Comparable<Int>, but it is very rare case which should be considered with caution.].
-If yes - feel free to implement Comparable interface.
-If no - it is generally better to create Comparator and put it somewhere nearby.
-NB: of course there can be some exceptions so it is more like rule of thumb, not the only possible option.
-
-=== Design discussion about int comparison result
+== Sidenote: Design discussion about int comparison result
 
 NOTE: kinda subjective
 
-Int type was chosen in Java as result type and also in Kotlin because of the idea of easy interop.
-However I would say that it is pretty unobvious and also implies that developer should operate with exact contract (which is not that hard to understand, but sometimes there are some points of confusion like "is is 1, 0 and -1 or any positive number, any negative number and zero")
+Kotlin chosen `Int` type for `compare` and `compareTo` result for easier interop with Java.
+Java chosen `int` type for `compare` and `compareTo` result due to lack of other viable options (enums were introduced only in Java 1.5) and to follow steps of C/C++
 
-In general I would say that it is better to operate with enum result (something like enum `Ordering { Less, Equal, Greater }`).
+In this context both decisions look reasonable but without this context it's quite weird to operate with whole integer type to represent 3 possible states. It's not that hard to memoize contract of comparisons in Java/Kotlin, but it's just inconvenient to works with.
+
+Ideally it would be nice to represent comparison result as enum with 3 possible values: `enum Ordering { Less, Equal, Greater }`
+
 It is more readable, there is less confusion how to implement it manually (NB: still would not recommend, please use helper functions if possible) and also it is easier to match result:
 
 [source,java]
@@ -170,4 +455,4 @@ public class Main {
 }
 ----
 
-Note that in some languages where that design is already in place.
+Note that in some languages where that design is already in place. Examples are: https://hackage.haskell.org/package/base-4.15.0.0/docs/Data-Ord.html#t:Ordering[Haskell], https://doc.rust-lang.org/stable/std/cmp/enum.Ordering.html[Rust].
