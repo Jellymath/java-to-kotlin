@@ -1,12 +1,20 @@
 = Equality in Java and Kotlin
 Alexander Levin
-1.0, July 13, 2021
+1.1, October 30, 2021
 :hide-uri-scheme:
 :toc:
 :source-highlighter: rouge
 :icons: font
 
-When you're migrating from Java to Kotlin it's not always clear what can be done in a better way.
+== Motivation
+
+When you're migrating from Java to Kotlin (or even just trying to access one language from the perspective of another) it's not always clear what can be done in a better way.
+That's especially the case if something is different in subtle way or was changed over time in Java itself.
+Official Kotlin documentation covers a couple of topics like https://kotlinlang.org/docs/java-to-kotlin-idioms-strings.html[Strings] or https://kotlinlang.org/docs/comparison-to-java.html[formal comparison] which is nice.
+
+So main intention for "in Java and Kotlin" article series is to explore some topics that may differ from one language to another.
+To do that, comprehensive description of specific feature in both language will be done.
+
 As the first example of things to improve, let's compare how to check equality in Java and Kotlin.
 
 == Primitives
@@ -356,6 +364,8 @@ fun main() {
 In general Kotlin solves a lot of complexity that we can see in Java related to equality checks.
 All `==` operators, `equals` methods, `Objects.equals` functions became just `==` operators in Kotlin which is far more convenient.
 Arrays and nested arrays are still require some workarounds, but they are a bit more convenient (no need for imports, extension functions instead of usual function with 2 arguments)
+
+I hope you find this article useful.
 
 == Side note 1: Identity check in Kotlin
 

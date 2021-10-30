@@ -1,10 +1,12 @@
 = Comparison in Java and Kotlin
 Alexander Levin
-2.0, July 20, 2021
+2.1, October 30, 2021
 :hide-uri-scheme:
 :toc:
 :source-highlighter: rouge
 :icons: font
+
+== Intro
 
 Previously we discussed the idea of checking equality of 2 objects which answer the question "are these 2 objects equal of not" with proper answers `true` ("Yes, they are equal to each other") and `false` ("No, they are different from each other").
 It's useful for operations like `contains`, `distinct` and many others.
@@ -20,7 +22,7 @@ Let's find out how it was done in Java and Kotlin (and briefly look into another
 
 === Java
 
-Mostfootnote:[Actually all of them except `void` type (which is not always considered as primitive type) and `boolean`. That types are: `char`, `byte`, `short`, `int`, `long`, `float` and `double`] basic primitive types operate with following comparison operators: `>` (more than), `>=` (more or equal), `<` (less than) and `<=` (less or equal)
+Mostfootnote:[Actually all of them except `void` type (which is not always considered as primitive type) and `boolean`. That types are: `char`, `byte`, `short`, `int`, `long`, `float` and `double`] basic primitive types operate with following comparison operators: `>` (more than), `>=` (more or equal), `<` (less than) and `\<=` (less or equal)
 
 [source,java]
 ----
@@ -87,7 +89,7 @@ fun main() {
 
 === Java
 
-While basic type comparison provide us some foundation, it's not exactly sufficient: you need to write same function for multiple types and also non-primitive types are not covered by this approach.
+While basic type comparison provides us some foundation, it's not exactly sufficient: you need to write same function for multiple types and also non-primitive types are not covered by this approach.
 However, there is another solution: https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Comparable.html[Comparable]
 
 `Comparable` is the interface with single method to implement -  https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/Comparable.html#compareTo(T)[compareTo], description of which says the following:
@@ -131,7 +133,7 @@ Let's start with mostly familiar stuff:
 
 As mentioned, there are some things that are not present in Java (at least in the same way):
 
-* Any `Comparable` type have the ability to use comparison operators (so you can write expression like `"abc" < "cde"` footnote:[technically you can extend any type by providing operator function `compareTo` without implementing `Comparable` type explicitly. However, it only allows for operator usage, so it's better to just implement `Comparable` if that's possible and suitable for specific type. More on that https://kotlinlang.org/docs/operator-overloading.html#comparison-operators[here]])
+* Any `Comparable` type have the ability to use comparison operators (so you can write expression like `"abc" < "cde"` footnote:[Technically you can extend any type by providing operator function `compareTo` without implementing `Comparable` type explicitly. However, it only allows for operator usage, so it's better to just implement `Comparable` if that's possible and suitable for specific type. More on that https://kotlinlang.org/docs/operator-overloading.html#comparison-operators[here]])
 * Coercion extension functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-in.html[coerceIn], https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-at-least.html[coerceAtLeast] and https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/coerce-at-most.html[coerceAtMost] (with coercion functions you can write something like `inputValue.coerceIn(minReasonableValue, maxReasonableValue)`)
 * https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.ranges/-closed-range/[ClosedRange] type
 * *-By* counterparts for sorting functions like https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sort-by.html[sortBy] or https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/sorted-by.html[sortedBy].
@@ -426,6 +428,15 @@ data class Worker(val id: Int, val salary: Int, val age: Int, val name: String):
 ----
 
 Note that usage of `compareValuesBy` is rather limited so potential ideas of using `Comparator` or implementing `Comparable` manually still can be valid.
+
+== Conclusion
+
+In general there is nothing unique in Kotlin: we have the same concept of `Comparable` and `Comparator` with the same contract and the same idea how to use it. Most differences are due to two facts. First is, primitive functions are not always separated. Because of that you don't need to worry whether to using something like `comparing` or `comparingInt`. It's hard to easily solve this issue right now, but maybe we will see something cool with https://openjdk.java.net/projects/valhalla/[Project Valhalla]. Second is, standard library is just richer. Of course, that can alleviated with usage of external libraries (as example, you can have much richer API by using https://github.com/amaembo/streamex[StreamEx] which include methods like `sortedBy` or `maxBy`)
+
+However, I feel like these small differences made working with Kotlin quite a lot easier. Even with external libraries it's hard to work with existing types like `Stream`, `Collection` and other. You can import some helper library (technically Kotlin standard library can be used as helper library for Java) but it less convenient as you need to write something like `take(sortedWith(workers, (worker) -> worker.getSalary()), 10)`. Right now you can work around this problem by adding https://manifold.systems/[Manifold] to your project but that can introduce another set of problems and in general it's not a popular solution. Hopefully we will see something like extension functions or pipe operator in Java in the future.
+
+I hope you found something useful over this article.
+
 
 == Sidenote: Design discussion about int comparison result
 
